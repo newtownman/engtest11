@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>한국어 음성 청취 평가 실험</title>
+    <!-- jsPsych 본체(항상 맨 위) -->
+  <script src="https://unpkg.com/jspsych@8.2.1"></script>
+  <!-- 플러그인들 (쓸 것만 한 번씩) -->
+  <script src="https://unpkg.com/@jspsych/plugin-html-button-response@2.1.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-survey@2.0.1"></script>
+  <link href="https://unpkg.com/jspsych@8.2.1/css/jspsych.css" rel="stylesheet" />
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
+  <style>
+    html, body, .jspsych-content, .sv-root, .sv-question__title, .sv-string-viewer, input, select, button {
+      font-size: 1.25rem !important;
+      line-height: 1.5 !important;
+    }
+    #progress-indicator {
+      position: fixed;
+      top: 12px;
+      right: 18px;
+      z-index: 9999;
+      font-size: 2.2em;
+      font-weight: bold;
+      color: #333;
+      background: rgba(255,255,255,0.8);
+      padding: 2px 10px;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      pointer-events: none;
+      user-select: none;
+    }
+    .sv-description {
+      font-size: 0.98em;
+      color: #666;
+      margin-top: 4px;
+      margin-bottom: 8px;
+      white-space: pre-line;
+    }
+    .sd-action__title {
+      display: none !important;
+    }
+    .sv-action-bar-item.sv-action-bar-item--icon.sv-dots__item {
+      display: none !important;
+    }
+    .sd-action[title="Clear"] {
+      display: none !important;
+    }
+    .sv-clear-button,
+    .sv-dropdown__button {
+      display: none !important;
+    }
+    .sv_q_radiogroup {
+      display: block !important;
+    }
+    .sv_q_rating .sv-string-viewer {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="progress-indicator"></div>
+</body>
+<script>
+  // Firebase 설정 및 초기화
+const stimuli = ["1_1.wav", "2_1.wav", "3_1.wav","4_1.wav","5_1.wav "];
+
+/********************************************************
+  최신 Firebase config로 compat 방식 초기화!
+********************************************************/
+const firebaseConfig = {
+  apiKey: "AIzaSyCBoY3ewkkl6VxFtkbFZkzuVolpIDnhtZI",
+  authDomain: "perception-test-kang.firebaseapp.com",
+  databaseURL: "https://perception-test-kang-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "perception-test-kang",
+  storageBucket: "perception-test-kang.firebasestorage.app",
+  messagingSenderId: "686724960923",
+  appId: "1:686724960923:web:3df683b4546dbafea82c3e"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+ // 설문 시작 전 응답 개수 체크(30명 제한)
+  db.ref('responses').once('value').then(function(snapshot) {
+    const responseCount = snapshot.numChildren();
+    if (responseCount >= 30) {
+      document.body.innerHTML = `
+        <div style="padding:2em; font-size:1.3em; text-align:center;">
+          <b>설문이 마감되었습니다.</b><br>
+          정원(30명)이 모두 참여하여 더 이상 응답을 받을 수 없습니다.<br>
+          참여해주셔서 감사합니다!
+        </div>
+      `;
+    } else {
+      runExperiment();
+    }
+  });
+
+function runExperiment() {
+  const jsPsych = initJsPsych({
+    on_finish: function() {
+      const trials = jsPsych.data.get().filter({trial_tag: 'audio_trial'}).values();
+      const account = jsPsych.data.get().filter({trial_tag: 'account_info'}).last(1).values()[0];
+      db.ref('responses').push({
+        trials: trials,
+        name: account?.ptp_name || "",
+        account: account?.ptp_account || "",
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
+  const timeline = [];
+  // 안내문
+timeline.push({
+  type: jsPsychHtmlButtonResponse,
+  stimulus: `
+    <h2>설문 안내</h2>
+    <p>
+      이 설문은 여러 가지 음성 파일을 듣고<br>
+      각 문항에 간단히 응답하는 실험입니다.<br><br>
+      총 60문항으로 이루어져 있으며,<br>
+      각 문항마다 제시되는 음성 파일을 반드시 헤드폰/이어폰으로 들은 뒤<br>
+      <b>처음 느낌대로 빠르게 응답</b>해 주세요.<br><br>
+      실험 완료 시 연락처를 입력하시면 소정의 상품을 받을 수 있습니다.<br><br>
+      준비가 되셨으면 아래 ‘시작’ 버튼을 눌러주세요.
+    </p>
+  `,
+  choices: ['시작'],
+  on_start: function() {
+    document.getElementById('progress-indicator').innerText = '';
+  }
+});
+
+    const shuffled = jsPsych.randomization.shuffle(stimuli);
+    const total_trials = shuffled.length; 
+
+    shuffled.forEach((audiofile, idx) => {
+      const survey_json = {
+        elements: [
+          {
+            type: "html",
+            name: "audio_" + idx,
+            html: `
+              <p><b>들어보이소.</b></p>
+              <audio controls>
+                <source src="${audiofile}" type="audio/wav">
+                브라우저가 오디오 태그를 지원하지 않습니다.
+              </audio>
+              <p style="font-weight:bold; margin-top:0.9em; margin-bottom:0.5em;">Q. 이 목소리의 주인공은...</p>
+              <hr>
+            `
+          },
+          {
+            type: "text",
+            name: "age",
+            title: "오늘날씨몇도?",
+            description: "(정확히 쓰이소)",
+            inputType: "number",
+            min: 10,
+            max: 99,
+            isRequired: true,
+            requiredErrorText: "이 문항은 반드시 숫자로 입력해주세요.",
+            validators: [
+              {
+                type: "numeric",
+                text: "이 문항은 반드시 숫자로 입력해주세요."
+              }
+            ]
+          },
+          {
+            type: "rating",
+            name: "gender",
+            title: "배고픕니까?",
+            rateMin: 1,
+            rateMax: 5,
+            isRequired: true,
+            minRateDescription: "",
+            maxRateDescription: "",
+            rateValues: [
+              { value: 1, text: "완전 배고픔" },
+              { value: 2, text: "조금 배고픔" },
+              { value: 3, text: "그저그럼" },
+              { value: 4, text: "조금 배고픔" },
+              { value: 5, text: "완전 배고픔" }
+            ],
+            displayMode: "buttons",
+            colCount: 5,
+            requiredErrorText: "이 문항을 꼭 선택해주세요."
+          },
+          {
+            type: "radiogroup",
+            name: "dialect_like",
+            title: "점심뭐먹을지생각중인가요?",
+            choices: ["예", "아니요"],
+            isRequired: true,
+            requiredErrorText: "반드시 선택해주세요."
+          },
+          {
+            type: "radiogroup",
+            name: "dialect_region",
+            title: "그럼뭐먹을거임?",
+            choices: ["고기", "야채", "모르겠음;;"],
+            isRequired: true,
+            requiredErrorText: "지역을 선택해주세요.",
+            visibleIf: "{dialect_like} = '예'"
+          },
+          {
+            type: "rating",
+            name: "naturalness",
+            title: "강예인은 얼마나 기계같나요?",
+            rateMin: 1,
+            rateMax: 5,
+            isRequired: true,
+            minRateDescription: "",
+            maxRateDescription: "",
+            rateValues: [
+              { value: 1, text: "완전 기계적" },
+              { value: 2, text: "조금 기계적" },
+              { value: 3, text: "중간" },
+              { value: 4, text: "조금 인간적" },
+              { value: 5, text: "매우 인간적" }
+            ],
+            displayMode: "buttons",
+            colCount: 5,
+            requiredErrorText: "이 문항을 꼭 선택해주세요."
+          }
+        ]
+      };
+
+      timeline.push({
+        type: jsPsychSurvey,
+        survey_json: survey_json,
+        button_label_finish: "다음",
+        data: { audio_file: audiofile, trial_tag: 'audio_trial' },
+        on_start: function() {
+          window.audioPlayed = false;
+          setTimeout(() => {
+            const audio = document.querySelector('audio');
+            if (audio) {
+              audio.addEventListener('play', () => { window.audioPlayed = true; });
+            }
+          }, 100);
+          document.getElementById('progress-indicator').innerText = `${idx + 1}/${total_trials}`;
+        },
+        on_finish: function(data) {
+          if(data.response){
+            Object.entries(data.response).forEach(([k, v]) => data[k] = v);
+            delete data.response;
+          }
+          data.audio_played = window.audioPlayed ? true : false;
+        }
+      });
+    });
+
+    timeline.push({
+      type: jsPsychSurvey,
+      survey_json: {
+        elements: [
+          {
+            type: "text",
+            name: "name",
+            title: "이름을 입력해보거라",
+            isRequired: true,
+            requiredErrorText: "이름을 입력해주세요."
+          },
+          {
+            type: "text",
+            name: "contact",
+            title: "연락 가능한 휴대폰 번호를 입력해 주세요 (예: 010-4121-9460)",
+            inputType: "tel",
+            isRequired: true,
+            requiredErrorText: "연락처를 입력해주세요."
+          },
+          {
+            type: "text",
+            name: "account_number",
+            title: "본인 계좌번호를 입력해 주세요 (예: 국민 12345678901234)",
+            isRequired: true,
+            requiredErrorText: "계좌번호를 입력해주세요."
+          },
+          {
+            type: "text",
+            name: "participant_age",
+            title: "본인 나이를 입력해 주세요",
+            inputType: "number",
+            isRequired: true,
+            requiredErrorText: "나이를 입력해주세요."
+          },
+          {
+            type: "text",
+            name: "participant_gender",
+            title: "본인 성별을 입력해 주세요 (예: 남성, 여성, 기타 등)",
+            isRequired: true,
+            requiredErrorText: "성별을 입력해주세요."
+          },
+          {
+            type: "text",
+            name: "participant_dialect",
+            title: "본인이 평소 가장 많이 쓰는 방언(예: 서울, 경상, 전라, 충청, 제주 등)을 입력해 주세요",
+            isRequired: true,
+            requiredErrorText: "방언을 입력해주세요."
+          }
+        ]
+      },
+      button_label_finish: "제출",
+      data: { trial_tag: "account_info" },
+      on_start: function() {
+        document.getElementById('progress-indicator').innerText = '';
+      },
+      on_finish: function(data) {
+        if(data.response){
+          Object.entries(data.response).forEach(([k, v]) => data[k] = v);
+          delete data.response;
+        }
+      }
+    });
+
+    timeline.push({
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <h2>설문 완료</h2>
+        <p style="color:#b00; font-size:0.98em; margin-top:1em;">
+          ※ 이름, 연락처, 계좌번호, 나이, 성별, 방언 정보는 중복 참가 방지 및 사례비 지급을 위해서만 사용되며,<br>
+          설문 종료 후 일정 기간 내 안전하게 파기할거삼ㅋ.
+        </p>
+        <p>문의: <b>zaqs1578@pusan.ac.kr</b></p>
+        <p>참여해주셔서 감사합니다!</p>
+      `,
+      choices: ['종료'],
+      on_start: function() {
+        document.getElementById('progress-indicator').innerText = '';
+      }
+    });
+
+    jsPsych.run(timeline);
+  }
+</script>
+</html>
