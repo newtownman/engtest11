@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>한국어 음성 청취 평가 실험</title>
+  <title>파이썬 설명회</title>
     <!-- jsPsych 본체(항상 맨 위) ->
   <script src="https://unpkg.com/jspsych@8.2.1"></script>
   <!-- 플러그인들 (쓸 것만 한 번씩) -->
@@ -65,31 +65,31 @@
 </body>
 <script>
   // Firebase 설정 및 초기화
-const stimuli = ["1_1.wav", "2_1.wav", "3_1.wav","4_1.wav","5_1.wav "];
+const stimuli = ["1_1.wav", "2_1.wav", "3_1.wav","4_1.wav","5_1.wav"];
 
 /********************************************************
   최신 Firebase config로 compat 방식 초기화!
 ********************************************************/
 const firebaseConfig = {
-  apiKey: "AIzaSyCBoY3ewkkl6VxFtkbFZkzuVolpIDnhtZI",
-  authDomain: "perception-test-kang.firebaseapp.com",
-  databaseURL: "https://perception-test-kang-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "perception-test-kang",
-  storageBucket: "perception-test-kang.firebasestorage.app",
-  messagingSenderId: "686724960923",
-  appId: "1:686724960923:web:3df683b4546dbafea82c3e"
-};
+    apiKey: "AIzaSyBJyo9a4ngKW53BoR3qH1IiQ0j4JpnTpdc",
+    authDomain: "engtest-24c56.firebaseapp.com",
+    projectId: "engtest-24c56",
+    storageBucket: "engtest-24c56.firebasestorage.app",
+    messagingSenderId: "750284508437",
+    appId: "1:750284508437:web:c31a358599e2e307a46d1c",
+    measurementId: "G-5W1VTJW515"
+  };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
  // 설문 시작 전 응답 개수 체크(30명 제한)
   db.ref('responses').once('value').then(function(snapshot) {
     const responseCount = snapshot.numChildren();
-    if (responseCount >= 30) {
+    if (responseCount >= 10) {
       document.body.innerHTML = `
         <div style="padding:2em; font-size:1.3em; text-align:center;">
           <b>설문이 마감되었습니다.</b><br>
-          정원(30명)이 모두 참여하여 더 이상 응답을 받을 수 없습니다.<br>
+          정원(10명)이 모두 참여하여 더 이상 응답을 받을 수 없습니다.<br>
           참여해주셔서 감사합니다!
         </div>
       `;
